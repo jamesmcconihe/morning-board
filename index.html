@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Morning Board — Markets &amp; Macro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#071624; --ink-2:#0d2233; --rule:#1b3a52;
+    --paper:#eef4f7; --paper-dim:#8ba6b8;
+    --rise:#3ecf9a; --fall:#ff6f6b; --flat:#7f97a8;
+    --brass:#d8b26a; --alarm:#ff8a5c;
+    --tile-pad:20px; --gap:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 15% -10%, #0f2c42 0%, rgba(15,44,66,0) 60%), var(--ink);
+    color:var(--paper);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh;
+    padding:clamp(16px,2.2vw,34px);
+  }
+
+  /* header */
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px 28px;
+    padding-bottom:16px;border-bottom:1px solid var(--rule)}
+  .brand{flex:1 1 320px;min-width:280px}
+  .brand h1{font-family:"Instrument Serif",Georgia,serif;font-weight:400;
+    font-size:clamp(30px,3.4vw,52px);line-height:1;margin:0 0 6px}
+  .brand h1 em{color:var(--brass);font-style:italic}
+  .datestamp{font-family:"IBM Plex Mono",monospace;font-size:12px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim)}
+  .clockbox{text-align:right;margin-left:auto}
+  .clock{font-family:"IBM Plex Mono",monospace;font-weight:500;
+    font-size:clamp(28px,3vw,44px);line-height:1;font-variant-numeric:tabular-nums}
+  .clock .zone{font-size:.38em;color:var(--paper-dim);letter-spacing:.14em;margin-left:.5em}
+  .statusline{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:10px;
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--paper-dim)}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:1px}
+  .dot.open{background:var(--rise);box-shadow:0 0 0 3px rgba(62,207,154,.16)}
+  .dot.closed{background:var(--flat)}
+  .refresh{background:none;border:1px solid var(--rule);color:var(--paper-dim);font:inherit;
+    letter-spacing:.09em;text-transform:uppercase;padding:5px 12px;border-radius:2px;cursor:pointer}
+  .refresh:hover{border-color:var(--brass);color:var(--brass)}
+  .refresh:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+  /* loud staleness bar */
+  .stalebar{display:none;margin-top:14px;padding:13px 18px;border-radius:3px;
+    background:rgba(255,138,92,.14);border:1px solid var(--alarm);color:#ffd9c7;
+    font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.05em;
+    align-items:center;gap:14px}
+  .stalebar.show{display:flex}
+  .stalebar strong{color:var(--alarm);text-transform:uppercase;letter-spacing:.12em;font-size:11.5px}
+  @keyframes pulsebg{0%,100%{background:rgba(255,138,92,.14)}50%{background:rgba(255,138,92,.26)}}
+  .stalebar.show{animation:pulsebg 3.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.stalebar.show{animation:none}}
+
+  .banner{margin:14px 0 0;padding:11px 16px;border-left:3px solid var(--brass);
+    background:rgba(216,178,106,.09);font-size:13px;line-height:1.5;color:#f0e3c6}
+  .banner.hidden{display:none}
+  .banner b{color:var(--brass)}
+
+  /* release calendar */
+  .cal{margin-top:18px;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .cal-head{display:flex;align-items:baseline;gap:12px;padding:10px 16px;
+    border-bottom:1px solid var(--rule);background:rgba(216,178,106,.05)}
+  .cal-head h3{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:19px;margin:0}
+  .cal-head span{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--paper-dim)}
+  .cal-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .cal-row{padding:12px 16px;border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:4px}
+  .cal-row:last-child{border-right:none}
+  .cal-when{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--paper-dim)}
+  .cal-row.today .cal-when{color:var(--brass)}
+  .cal-row.today{background:rgba(216,178,106,.07)}
+  .cal-what{font-size:13.5px;line-height:1.35}
+  .cal-hits{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--paper-dim)}
+
+  /* groups */
+  section{margin-top:clamp(22px,2.6vw,38px)}
+  .grouphead{display:flex;align-items:baseline;gap:16px;margin-bottom:14px}
+  .grouphead h2{font-family:"Instrument Serif",Georgia,serif;font-weight:400;
+    font-size:clamp(19px,1.7vw,26px);margin:0;white-space:nowrap}
+  .grouphead .hint{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--paper-dim);white-space:nowrap}
+  .grouphead .fill{flex:1;height:1px;background:linear-gradient(90deg,var(--brass),rgba(216,178,106,0))}
+  .grid{display:grid;gap:var(--gap);grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+
+  /* tile */
+  .tile{position:relative;background:var(--ink-2);border:1px solid var(--rule);border-radius:3px;
+    padding:var(--tile-pad) var(--tile-pad) 30px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .tile .label{font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--paper-dim);font-weight:500;display:flex;justify-content:space-between;gap:8px}
+  .tile .value{font-family:"IBM Plex Mono",monospace;font-weight:500;
+    font-size:clamp(27px,2.5vw,38px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .tile .value .unit{font-size:.5em;color:var(--paper-dim);margin-left:.3em;letter-spacing:.04em}
+  .tile .delta{font-family:"IBM Plex Mono",monospace;font-size:14px;
+    font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:9px}
+  .tile .delta .arrow{font-size:11px}
+  .tile .sub{font-size:11.5px;color:var(--paper-dim);line-height:1.35;min-height:1.2em}
+  .up{color:var(--rise)} .down{color:var(--fall)} .even{color:var(--flat)}
+
+  /* sparkline */
+  .spark{height:30px;width:100%;display:block;margin:1px 0 -2px}
+  .spark-empty{height:30px;display:flex;align-items:center;gap:8px;
+    font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--rule)}
+  .spark-empty i{flex:1;height:1px;background:repeating-linear-gradient(90deg,
+    var(--rule) 0 4px, transparent 4px 9px)}
+
+  /* threshold watch flag */
+  .watchflag{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    color:var(--brass);white-space:nowrap}
+  .tile.tripped{border-color:var(--brass);box-shadow:inset 3px 0 0 var(--brass)}
+
+  /* per-tile staleness */
+  .tile.aged .value{color:#b9cbd6}
+  .agebadge{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    color:var(--alarm);white-space:nowrap}
+
+  /* pulse bar */
+  .pulse{position:absolute;left:0;right:0;bottom:0;height:16px}
+  .pulse .axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--rule)}
+  .pulse .bar{position:absolute;top:6px;height:4px;border-radius:1px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .pulse .bar.up{left:50%;background:var(--rise)}
+  .pulse .bar.down{right:50%;background:var(--fall)}
+  .pulse .scale{position:absolute;bottom:2px;font-family:"IBM Plex Mono",monospace;
+    font-size:8.5px;color:var(--rule);letter-spacing:.08em}
+  .pulse .scale.l{left:4px} .pulse .scale.r{right:4px}
+  .tile.stale{opacity:.55}
+  .tile.stale .value{color:var(--paper-dim)}
+
+  /* slow-moving strip */
+  .slowstrip{margin-top:26px;border-top:1px solid var(--rule);padding-top:14px;
+    display:flex;flex-wrap:wrap;gap:10px 34px}
+  .slowitem{display:flex;align-items:baseline;gap:10px;font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .slowitem .k{font-family:"IBM Plex Sans",sans-serif;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--paper-dim)}
+  .slowitem .v{font-variant-numeric:tabular-nums}
+  .slowitem .m{color:var(--paper-dim);font-size:11px}
+
+  footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--rule);
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--paper-dim);display:flex;flex-wrap:wrap;gap:8px 24px}
+
+  @media (min-width:1800px){
+    :root{--gap:18px}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+    .tile .value{font-size:46px} .tile .label{font-size:13px} .tile .delta{font-size:17px}
+    .spark,.spark-empty{height:38px}
+  }
+  @media (prefers-reduced-motion:reduce){.pulse .bar{transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>The Morning <em>Board</em></h1>
+    <div class="datestamp" id="datestamp">—</div>
+  </div>
+  <div class="clockbox">
+    <div class="clock"><span id="clock">--:--:--</span><span class="zone" id="zone">PT</span></div>
+    <div class="statusline" style="justify-content:flex-end">
+      <span><span class="dot closed" id="mktdot"></span><span id="mktstate">checking market</span></span>
+    </div>
+  </div>
+  <div class="statusline" style="flex-basis:100%">
+    <span id="updated">never updated</span>
+    <span id="countdown">next refresh in --:--</span>
+    <span id="source">source: —</span>
+    <button class="refresh" id="refreshBtn">Refresh now</button>
+  </div>
+</header>
+
+<div class="stalebar" id="stalebar">
+  <strong>Stale</strong><span id="stalemsg"></span>
+</div>
+
+<div class="banner" id="banner">
+  <b>Frozen snapshot — not live.</b> Real published figures as of Friday 24 July 2026; macro tiles
+  show their own release dates. Sparklines stay empty until the feed supplies history —
+  I won't draw a trend line from invented data. This disappears once the GitHub Action has run
+  once and created <code>data/kpis.json</code>.
+</div>
+
+<div class="cal">
+  <div class="cal-head">
+    <h3>What prints next</h3>
+    <span>all times eastern</span>
+  </div>
+  <div class="cal-rows" id="calrows"></div>
+</div>
+
+<main id="board"></main>
+<div class="slowstrip" id="slowstrip"></div>
+
+<footer>
+  <span>Auto-refresh every 15 min</span>
+  <span>Sparkline window: 30 observations</span>
+  <span>Macro series move on release dates, not on refresh</span>
+</footer>
+<script>
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const CONFIG = {
+  ENDPOINT: './data/kpis.json', // file written by the GitHub Action; '' = snapshot mode
+  REFRESH_MINUTES: 15,
+  DISPLAY_TZ: undefined,
+  PULSE_FULL_SCALE: 2.0,        // % move that fills half the tile width
+  STALE_AFTER_MINUTES: 75,      // GitHub's scheduler runs late; 75 avoids false alarms
+  SPARK_POINTS: 30
+};
+
+/* =====================================================================
+   KPI DEFINITIONS
+   kind  'price' = % change   |  'rate' = change in percentage points
+   scale divides the raw value for display (claims: 1000 -> "187K")
+   watch {above|below} paints the tile and flags a threshold you care about
+   ===================================================================== */
+const GROUPS = [
+  {
+    title:'Markets', hint:'index, volatility & commodity levels',
+    items:[
+      { key:'dow',    label:'Dow Jones',      kind:'price', dp:2 },
+      { key:'nasdaq', label:'Nasdaq Comp',    kind:'price', dp:2 },
+      { key:'sp500',  label:'S&P 500',        kind:'price', dp:2 },
+      { key:'vix',    label:'Volatility VIX', kind:'price', dp:2, watch:{above:25} },
+      { key:'oil',    label:'Crude Oil WTI',  kind:'price', dp:2, prefix:'$', unit:'/bbl', watch:{above:100} },
+      { key:'gold',   label:'Gold',           kind:'price', dp:2, prefix:'$', unit:'/oz' },
+      { key:'silver', label:'Silver',         kind:'price', dp:3, prefix:'$', unit:'/oz' },
+      { key:'dxy',    label:'US Dollar Index',kind:'price', dp:2 }
+    ]
+  },
+  {
+    title:'The Economy', hint:'latest official readings',
+    items:[
+      { key:'unemployment', label:'Unemployment',   kind:'rate',  dp:1, unit:'%', watch:{above:4.5} },
+      { key:'claims',       label:'Jobless Claims', kind:'price', dp:0, scale:1000, unit:'K', watch:{above:300} },
+      { key:'cpi',          label:'CPI Inflation YoY', kind:'rate', dp:1, unit:'%', watch:{above:4.0} },
+      { key:'corepce',      label:'Core PCE YoY',   kind:'rate',  dp:1, unit:'%', watch:{above:3.5} },
+      { key:'fedfunds',     label:'Fed Funds Rate', kind:'rate',  dp:2, unit:'%' },
+      { key:'ust10',        label:'10-Yr Treasury', kind:'rate',  dp:2, unit:'%', watch:{above:5.0} },
+      { key:'mortgage30',   label:'30-Yr Mortgage', kind:'rate',  dp:2, unit:'%', watch:{above:7.0} }
+    ]
+  },
+  {
+    title:'The Dollar Abroad', hint:'foreign currency per 1 US dollar',
+    items:[
+      { key:'eur', label:'Euro',            kind:'price', dp:4, unit:'EUR' },
+      { key:'gbp', label:'British Pound',   kind:'price', dp:4, unit:'GBP' },
+      { key:'mxn', label:'Mexican Peso',    kind:'price', dp:3, unit:'MXN' },
+      { key:'cad', label:'Canadian Dollar', kind:'price', dp:4, unit:'CAD' }
+    ]
+  }
+];
+
+/* Slow movers: real, but too sluggish to earn a tile. One compact line. */
+const SLOW = [
+  { key:'debtgdp', label:'Public Debt / GDP', dp:2, unit:'%' }
+];
+
+const FX_KEYS = ['eur','gbp','mxn','cad'];
+
+/* =====================================================================
+   RELEASE CALENDAR — verified dates. Extend as the year goes on.
+   hits: which tiles the release moves.
+   ===================================================================== */
+const RELEASES = [
+  { date:'2026-07-29', time:'2:00 PM', what:'FOMC decision + Warsh press conference',
+    hits:['fedfunds','ust10','mortgage30'] },
+  { date:'2026-07-30', time:'8:30 AM', what:'Q2 GDP advance · June PCE & core PCE · jobless claims',
+    hits:['corepce','claims'] },
+  { date:'2026-07-30', time:'—',       what:'Debt-to-GDP ratio, Q2', hits:['debtgdp'] },
+  { date:'2026-07-31', time:'8:30 AM', what:'Employment Cost Index · Michigan sentiment final', hits:[] },
+  { date:'2026-08-06', time:'8:30 AM', what:'Jobless claims · Freddie Mac mortgage survey',
+    hits:['claims','mortgage30'] },
+  { date:'2026-08-07', time:'8:30 AM', what:'Employment Situation, July', hits:['unemployment'] },
+  { date:'2026-08-12', time:'8:30 AM', what:'Consumer Price Index, July', hits:['cpi'] }
+];
+
+/* =====================================================================
+   REFERENCE SNAPSHOT — real published figures, frozen in time.
+   Compiled 27 Jul 2026. NOT live: nothing moves until the feed answers.
+   No `history` arrays: sparkline data would have to be invented, so the
+   sparklines stay empty by design. Blank cells are documented in README.
+   ===================================================================== */
+const SNAPSHOT = {
+  updated: '2026-07-24T20:00:00Z',
+  mode: 'snapshot',
+  series: {
+    /* Friday 24 Jul 2026 closes */
+    dow:    { value: 51947.25, prev: 51711.65, asOf:'Fri 24 Jul close' },
+    nasdaq: { value: 24975.82, prev: 25137.69, asOf:'Fri 24 Jul close' },
+    sp500:  { value:  7411.98, prev:  7408.30, asOf:'Fri 24 Jul close' },
+    vix:    { value:    18.70, prev:    16.64, asOf:'Thu 23 Jul close', aged:true,
+              note:'Prior close implied from +12.4%' },
+    oil:    { value:    90.12, prev:    92.19, asOf:'Fri 24 Jul close',
+              note:'WTI; prior implied from −2.25%' },
+    gold:   { value:  4056.30, prev:  4050.22, asOf:'Fri 24 Jul close',
+              note:'Prior implied from +0.15%' },
+    silver: { value:   58.870, prev:   58.040, asOf:'Fri 24 Jul intraday',
+              note:'Sep futures, 8:28 a.m. ET' },
+    dxy:    { value:   100.91, prev:   101.26, asOf:'Tue 14 Jul close', aged:true,
+              note:'Latest level I could source' },
+
+    /* Macro */
+    unemployment: { value: 4.2,  prev: 4.3,  asOf:'Jun 2026 · rel. 2 Jul', note:'BLS household survey' },
+    claims:       { value: 187000, prev: 209000, asOf:'wk ending 18 Jul',
+                    note:'Lowest in nearly 60 years' },
+    cpi:          { value: 3.5,  prev: 4.2,  asOf:'Jun 2026 · rel. 14 Jul', note:'All items, 12-mo, NSA' },
+    corepce:      { value: 3.4,  prev: null, asOf:'May 2026 · June prints 30 Jul',
+                    note:'Cleveland Fed nowcasts 3.33% for July' },
+    fedfunds:     { value: 3.63, prev: 3.63, asOf:'held since Dec 2025',
+                    note:'Midpoint of 3.50–3.75% target' },
+    ust10:        { value: 4.68, prev: 4.70, asOf:'Fri 24 Jul close' },
+    mortgage30:   { value: 6.58, prev: 6.55, asOf:'week of 23 Jul', note:'Freddie Mac PMMS' },
+    debtgdp:      { value: 122.59, prev: 122.57, asOf:'Q1 2026 · next 30 Jul', note:'FRED GFDEGDQ188S' },
+
+    /* FX — foreign currency per 1 USD */
+    eur: { value: 0.8803,  prev: null,    asOf:'Fri 24 Jul', note:'From EUR/USD 1.1360' },
+    gbp: { value: 0.7505,  prev: null,    asOf:'Fri 24 Jul', note:'From GBP/USD 1.33253' },
+    mxn: null,                                  /* no verified reading for this date */
+    cad: { value: 1.40935, prev: 1.40865, asOf:'Fri 24 Jul', note:'Mid-market' }
+  }
+};
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+const nf = (v,dp) => v.toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const ALL_ITEMS = () => GROUPS.flatMap(g => g.items);
+
+function sparkSVG(history, dp){
+  const pts = history.slice(-CONFIG.SPARK_POINTS).filter(n => typeof n === 'number' && isFinite(n));
+  if(pts.length < 3) return null;
+  const lo = Math.min(...pts), hi = Math.max(...pts), span = (hi - lo) || 1;
+  const W = 100, H = 30, pad = 3;
+  const coords = pts.map((v,i) => {
+    const x = (i / (pts.length - 1)) * W;
+    const y = H - pad - ((v - lo) / span) * (H - pad*2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const dir = pts[pts.length-1] >= pts[0] ? 'var(--rise)' : 'var(--fall)';
+  const last = coords[coords.length-1].split(',');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+      role="img" aria-label="trend over last ${pts.length} observations">
+      <polyline points="${coords.join(' ')}" fill="none" stroke="${dir}"
+        stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      <circle cx="${last[0]}" cy="${last[1]}" r="1.9" fill="${dir}" vector-effect="non-scaling-stroke"/>
+    </svg>`;
+}
+
+function relDay(iso){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso + 'T00:00:00'); d.setHours(0,0,0,0);
+  const days = Math.round((d - today) / 86400000);
+  if(days === 0) return 'Today';
+  if(days === 1) return 'Tomorrow';
+  if(days < 0)   return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if(days < 7)   return d.toLocaleDateString('en-US',{weekday:'long'});
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+
+/* =====================================================================
+   BUILD
+   ===================================================================== */
+function buildCalendar(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const upcoming = RELEASES
+    .filter(r => new Date(r.date + 'T00:00:00') >= today)
+    .slice(0,4);
+  const host = document.getElementById('calrows');
+  if(!upcoming.length){
+    host.innerHTML = `<div class="cal-row"><div class="cal-what">No dates left in the
+      calendar — add the next ones to <code>RELEASES</code>.</div></div>`;
+    return;
+  }
+  host.innerHTML = upcoming.map(r => {
+    const isToday = relDay(r.date) === 'Today';
+    const labels = r.hits.map(k => {
+      const it = ALL_ITEMS().find(i => i.key === k) || SLOW.find(i => i.key === k);
+      return it ? it.label : k;
+    });
+    return `<div class="cal-row${isToday ? ' today' : ''}">
+      <div class="cal-when">${relDay(r.date)}${r.time !== '—' ? ' · ' + r.time : ''}</div>
+      <div class="cal-what">${r.what}</div>
+      <div class="cal-hits">${labels.length ? 'moves: ' + labels.join(', ') : 'no board tiles'}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildSkeleton(){
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  GROUPS.forEach(g => {
+    const sec = document.createElement('section');
+    sec.innerHTML = `<div class="grouphead"><h2>${g.title}</h2>
+      <span class="fill"></span><span class="hint">${g.hint}</span></div><div class="grid"></div>`;
+    const grid = sec.querySelector('.grid');
+    g.items.forEach(item => {
+      const t = document.createElement('article');
+      t.className = 'tile stale';
+      t.id = 'tile-' + item.key;
+      t.innerHTML = `
+        <div class="label"><span>${item.label}</span><span data-flag></span></div>
+        <div class="value" data-v>—</div>
+        <div class="delta" data-d><span class="even">awaiting data</span></div>
+        <div data-spark></div>
+        <div class="sub" data-s></div>
+        <div class="pulse">
+          <span class="scale l">−${CONFIG.PULSE_FULL_SCALE}%</span>
+          <span class="axis"></span>
+          <div class="bar" data-b style="width:0"></div>
+          <span class="scale r">+${CONFIG.PULSE_FULL_SCALE}%</span>
+        </div>`;
+      grid.appendChild(t);
+    });
+    board.appendChild(sec);
+  });
+}
+
+/* =====================================================================
+   PAINT
+   ===================================================================== */
+function paint(payload){
+  const series = payload.series || {};
+
+  ALL_ITEMS().forEach(item => {
+    const tile = document.getElementById('tile-' + item.key);
+    const d = series[item.key];
+    const flag = tile.querySelector('[data-flag]');
+    const sparkHost = tile.querySelector('[data-spark]');
+    tile.classList.remove('tripped','aged');
+    flag.innerHTML = '';
+
+    if(!d || typeof d.value !== 'number'){
+      tile.classList.add('stale');
+      tile.querySelector('[data-v]').textContent = '—';
+      tile.querySelector('[data-d]').innerHTML = '<span class="even">no data from source</span>';
+      tile.querySelector('[data-s]').textContent = '';
+      sparkHost.innerHTML = '';
+      tile.querySelector('[data-b]').style.width = '0';
+      return;
+    }
+    tile.classList.remove('stale');
+
+    const scale = item.scale || 1;
+    const val = d.value, prev = (typeof d.prev === 'number') ? d.prev : null;
+
+    tile.querySelector('[data-v]').innerHTML =
+      (item.prefix || '') + nf(val/scale, item.dp) +
+      (item.unit ? `<span class="unit">${item.unit}</span>` : '');
+
+    /* change */
+    const deltaEl = tile.querySelector('[data-d]');
+    const bar = tile.querySelector('[data-b]');
+    if(prev === null){
+      deltaEl.className = 'delta even';
+      deltaEl.innerHTML = '<span>no prior reading</span>';
+      bar.style.width = '0';
+    } else {
+      const abs = val - prev;
+      const pct = prev !== 0 ? (abs/Math.abs(prev))*100 : 0;
+      const dir = abs > 0 ? 'up' : abs < 0 ? 'down' : 'even';
+      const sign = abs > 0 ? '+' : '';
+      const arrow = abs > 0 ? '▲' : abs < 0 ? '▼' : '■';
+      const primary = item.kind === 'rate'
+        ? `${sign}${nf(abs, item.dp)} pp`
+        : `${sign}${nf(abs/scale, item.dp)}${item.unit && scale !== 1 ? item.unit : ''}`;
+      const secondary = item.kind === 'rate' ? '' : `${sign}${pct.toFixed(2)}%`;
+      deltaEl.className = 'delta ' + dir;
+      deltaEl.innerHTML = `<span class="arrow">${arrow}</span><span>${primary}</span>`
+        + (secondary ? `<span style="opacity:.72">${secondary}</span>` : '');
+      const frac = Math.min(Math.abs(pct)/CONFIG.PULSE_FULL_SCALE, 1);
+      bar.className = 'bar ' + (dir === 'even' ? '' : dir);
+      bar.style.width = (frac*50) + '%';
+    }
+
+    /* sparkline */
+    const svg = Array.isArray(d.history) ? sparkSVG(d.history, item.dp) : null;
+    sparkHost.innerHTML = svg ||
+      `<div class="spark-empty"><i></i>trend with live feed<i></i></div>`;
+
+    /* threshold watch */
+    if(item.watch){
+      const w = item.watch;
+      const tripped = (w.above !== undefined && val/scale > w.above)
+                   || (w.below !== undefined && val/scale < w.below);
+      if(tripped){
+        tile.classList.add('tripped');
+        const lim = w.above !== undefined ? `over ${w.above}` : `under ${w.below}`;
+        flag.innerHTML = `<span class="watchflag">⌂ ${lim}</span>`;
+      }
+    }
+
+    /* per-tile age */
+    if(d.aged){
+      tile.classList.add('aged');
+      flag.innerHTML += `<span class="agebadge">older print</span>`;
+    }
+
+    /* sub-line */
+    const bits = [];
+    if(FX_KEYS.includes(item.key) && val > 0) bits.push(`1 ${item.unit} = $${nf(1/val,4)}`);
+    if(d.note) bits.push(d.note);
+    if(d.asOf) bits.push(d.asOf);
+    tile.querySelector('[data-s]').textContent = bits.join(' · ');
+  });
+
+  /* slow strip */
+  document.getElementById('slowstrip').innerHTML = SLOW.map(item => {
+    const d = series[item.key];
+    if(!d || typeof d.value !== 'number')
+      return `<div class="slowitem"><span class="k">${item.label}</span><span class="m">no data</span></div>`;
+    const prev = typeof d.prev === 'number' ? d.prev : null;
+    const chg = prev === null ? '' :
+      `<span class="m ${d.value>prev?'up':d.value<prev?'down':'even'}">${d.value>prev?'+':''}${nf(d.value-prev,item.dp)} pp</span>`;
+    return `<div class="slowitem"><span class="k">${item.label}</span>
+      <span class="v">${nf(d.value,item.dp)}${item.unit||''}</span>${chg}
+      <span class="m">${d.asOf||''}</span></div>`;
+  }).join('');
+}
+
+/* =====================================================================
+   CLOCK / MARKET STATE / COUNTDOWN
+   ===================================================================== */
+function tickClock(){
+  const now = new Date();
+  const opts = {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
+  if(CONFIG.DISPLAY_TZ) opts.timeZone = CONFIG.DISPLAY_TZ;
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-US',opts);
+  document.getElementById('zone').textContent =
+    new Intl.DateTimeFormat('en-US',{timeZoneName:'short',timeZone:CONFIG.DISPLAY_TZ})
+      .formatToParts(now).find(p=>p.type==='timeZoneName').value;
+
+  const dOpts = {weekday:'long',month:'long',day:'numeric',year:'numeric'};
+  if(CONFIG.DISPLAY_TZ) dOpts.timeZone = CONFIG.DISPLAY_TZ;
+  document.getElementById('datestamp').textContent = now.toLocaleDateString('en-US',dOpts);
+
+  /* NYSE regular session 09:30–16:00 ET, Mon–Fri. Holidays not handled. */
+  const p = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
+    weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
+  const get = t => p.find(x=>x.type===t).value;
+  const wd = get('weekday'), mins = (+get('hour'))*60 + (+get('minute'));
+  const open = !['Sat','Sun'].includes(wd) && mins >= 570 && mins < 960;
+  document.getElementById('mktdot').className = 'dot ' + (open ? 'open' : 'closed');
+  document.getElementById('mktstate').textContent = open ? 'US market open' : 'US market closed';
+}
+
+let nextRefreshAt = 0;
+function tickCountdown(){
+  const left = Math.max(0, nextRefreshAt - Date.now());
+  const m = String(Math.floor(left/60000)).padStart(2,'0');
+  const s = String(Math.floor(left%60000/1000)).padStart(2,'0');
+  document.getElementById('countdown').textContent = `next refresh in ${m}:${s}`;
+}
+
+/* Loud staleness: a wall board must never look healthy while it's frozen. */
+let lastGoodFetch = null, lastError = null, feedProblems = [];
+function tickStale(){
+  const bar = document.getElementById('stalebar');
+  const msg = document.getElementById('stalemsg');
+  if(!CONFIG.ENDPOINT){ bar.classList.remove('show'); return; }
+  if(!lastGoodFetch){
+    bar.classList.add('show');
+    msg.textContent = `The feed has not answered${lastError ? ' — ' + lastError : ''}. `
+      + `Nothing on this board is current.`;
+    return;
+  }
+  const mins = Math.floor((Date.now() - lastGoodFetch)/60000);
+  if(mins >= CONFIG.STALE_AFTER_MINUTES){
+    bar.classList.add('show');
+    msg.textContent = `Last successful update was ${mins} minutes ago`
+      + `${lastError ? ' — ' + lastError : ''}. Treat every number as old.`;
+  } else if(feedProblems.length){
+    bar.classList.add('show');
+    msg.textContent = `Feed answered, but ${feedProblems.length} series had trouble — `
+      + `open the browser console, or the Actions log on GitHub, for the list.`;
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+/* =====================================================================
+   LOAD
+   ===================================================================== */
+let loading = false;
+async function load(){
+  if(loading) return;
+  loading = true;
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = 'Refreshing…';
+
+  let payload = null;
+  lastError = null;
+  if(CONFIG.ENDPOINT){
+    try{
+      const sep = CONFIG.ENDPOINT.includes('?') ? '&' : '?';
+      const r = await fetch(CONFIG.ENDPOINT + sep + 't=' + Date.now(), {cache:'no-store'});
+      if(!r.ok) throw new Error('feed returned ' + r.status);
+      payload = await r.json();
+      if(!payload || !payload.series) throw new Error('feed missing "series"');
+      lastGoodFetch = Date.now();
+      if(Array.isArray(payload.problems) && payload.problems.length){
+        console.warn('Feed reported problems:', payload.problems);
+        feedProblems = payload.problems;
+      } else { feedProblems = []; }
+    }catch(e){ lastError = e.message; }
+  } else {
+    lastError = 'no endpoint configured';
+  }
+
+  const usingSnapshot = !payload;
+  if(usingSnapshot) payload = SNAPSHOT;
+
+  paint(payload);
+  document.getElementById('banner').classList.toggle('hidden', !usingSnapshot);
+  document.getElementById('source').textContent = usingSnapshot
+    ? 'source: frozen snapshot' + (CONFIG.ENDPOINT && lastError ? ` — ${lastError}` : '')
+    : 'source: live feed';
+  const stamp = payload.updated ? new Date(payload.updated) : new Date();
+  document.getElementById('updated').textContent =
+    'data as of ' + stamp.toLocaleString('en-US',
+      {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+
+  nextRefreshAt = Date.now() + CONFIG.REFRESH_MINUTES*60*1000;
+  btn.textContent = 'Refresh now';
+  loading = false;
+  tickStale();
+}
+
+document.getElementById('refreshBtn').addEventListener('click', load);
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && Date.now() > nextRefreshAt) load();
+});
+
+buildCalendar();
+buildSkeleton();
+tickClock();     setInterval(tickClock, 1000);
+tickCountdown(); setInterval(tickCountdown, 1000);
+tickStale();     setInterval(tickStale, 30000);
+load();
+setInterval(load, CONFIG.REFRESH_MINUTES*60*1000);
+setInterval(buildCalendar, 3600000);   // roll the calendar over at day change
+</script>
+</body>
+</html>
