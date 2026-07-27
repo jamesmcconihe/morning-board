@@ -29,7 +29,7 @@ const LOOKBACK_DAYS = { daily: 200, weekly: 1100, monthly: 2000, quarterly: 5500
 const FRED_SERIES = {
   unemployment: { id:'UNRATE',       mode:'level', cadence:'monthly',   note:'BLS household survey' },
   claims:       { id:'ICSA',         mode:'level', cadence:'weekly',    note:'Initial claims, SA' },
-  cpi:          { id:'CPIAUCNS',     mode:'yoy',   cadence:'monthly',   note:'CPI-U, all items' },
+  cpi:          { id:'CPIAUCSL',     mode:'yoy',   cadence:'monthly',   note:'CPI-U, all items' },
   corepce:      { id:'PCEPILFE',     mode:'yoy',   cadence:'monthly',   note:"Fed's preferred gauge" },
   fedfunds:     { id:'DFF',          mode:'level', cadence:'daily',     note:'Effective fed funds' },
   ust10:        { id:'DGS10',        mode:'level', cadence:'daily',     note:'10-yr constant maturity' },
@@ -141,14 +141,48 @@ export async function fetchYahoo(spec, fetchImpl = fetch){
   if(!res) throw new Error(j?.chart?.error?.description || 'Yahoo returned no result');
 
   const meta = res.meta || {};
-  const closes = (res.indicators?.quote?.[0]?.close || []).filter(n => typeof n === 'number');
-  if(!closes.length) throw new Error('Yahoo returned no closing prices');
+  const stamps = res.timestamp || [];
+  const bars = (res.indicators?.quote?.[0]?.close || [])
+    .map((c, i) => ({ t: stamps[i], c }))
+    .filter(b => typeof b.c === 'number');
+  if(!bars.length) throw new Error('Yahoo returned no closing prices');
+  const closes = bars.map(b => b.c);
 
   /* Live-ish price if the market is trading, else the last daily close. */
   let value = typeof meta.regularMarketPrice === 'number'
     ? meta.regularMarketPrice : closes[closes.length - 1];
-  let prev = typeof meta.chartPreviousClose === 'number'
-    ? meta.chartPreviousClose : (closes[closes.length - 2] ?? null);
+
+  /* PRIOR SESSION CLOSE — the field names here are a trap.
+     meta.chartPreviousClose is the close BEFORE THE START OF THE REQUESTED
+     RANGE (3 months ago), not yesterday. Using it makes every daily change
+     read as a quarterly change. meta.previousClose is the correct field.
+     If it's absent, fall back to the daily bars: the last bar is today's
+     (partial while the market is open), so yesterday is the one before it —
+     unless no bar exists for today yet, in which case the last bar IS the
+     prior close. */
+  const dayOf = ms => new Date(ms).toISOString().slice(0, 10);
+  const lastBarDay = bars[bars.length - 1].t ? dayOf(bars[bars.length - 1].t * 1000) : null;
+  const quoteDay = meta.regularMarketTime ? dayOf(meta.regularMarketTime * 1000) : null;
+  const lastBarIsCurrent = lastBarDay && quoteDay && lastBarDay === quoteDay;
+  const barPrev = lastBarIsCurrent
+    ? (closes[closes.length - 2] ?? null)
+    : closes[closes.length - 1];
+
+  let prev = barPrev;
+  let prevNote = '';
+  if(typeof meta.previousClose === 'number'){
+    prev = meta.previousClose;
+    /* Cross-check against the daily bars. A wrong-field bug (e.g. reading
+       chartPreviousClose, which is the close before the range start) shows up
+       as a large gap here even when the resulting percentage looks ordinary.
+       Trust the bars when they disagree badly. */
+    if(barPrev && Math.abs((prev - barPrev) / barPrev) > 0.05){
+      prevNote = `meta.previousClose (${prev}) disagrees with the prior daily bar `
+               + `(${barPrev}) by more than 5% — used the bar`;
+      prev = barPrev;
+    }
+  }
+
   let history = closes.slice(-HISTORY_POINTS);
 
   if(spec.invert){
@@ -173,6 +207,7 @@ export async function fetchYahoo(spec, fetchImpl = fetch){
     history: history.map(v => round(v, dp)),
     asOf: `${when} · ${meta.marketState === 'REGULAR' ? 'intraday' : 'last close'}`,
     note: spec.note,
+    warn: prevNote || undefined,
     source: `Yahoo ${spec.yahoo}`
   };
 }
@@ -239,6 +274,13 @@ export async function build({ fetchImpl = fetch } = {}){
     jobs.push((async () => {
       try{
         series[key] = await fetchYahoo(spec, fetchImpl);
+        const d = series[key];
+        if(d.warn) problems.push(`${key}: ${d.warn}`);
+        if(typeof d.prev === 'number' && d.prev !== 0){
+          const pct = Math.abs((d.value - d.prev) / d.prev) * 100;
+          if(pct > 20) problems.push(
+            `${key}: daily change of ${pct.toFixed(1)}% is unusually large — worth an eyeball`);
+        }
       }catch(e1){
         try{
           series[key] = await fetchStooq(spec, fetchImpl);
