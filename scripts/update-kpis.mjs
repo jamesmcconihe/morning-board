@@ -47,6 +47,7 @@ const MARKETS = {
   sp500:  { yahoo:'^GSPC',     stooq:'^spx',    note:'' },
   vix:    { yahoo:'^VIX',      stooq:null,      note:'CBOE volatility index' },
   oil:    { yahoo:'CL=F',      stooq:'cl.f',    note:'WTI front-month' },
+  brent:  { yahoo:'BZ=F',      stooq:'cb.f',    note:'Brent front-month' },
   gold:   { yahoo:'GC=F',      stooq:'xauusd',  note:'Front-month futures' },
   silver: { yahoo:'SI=F',      stooq:'xagusd',  note:'Front-month futures' },
   dxy:    { yahoo:'DX-Y.NYB',  stooq:null,      note:'ICE US dollar index' },
