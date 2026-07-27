@@ -29,7 +29,7 @@ const LOOKBACK_DAYS = { daily: 200, weekly: 1100, monthly: 2000, quarterly: 5500
 const FRED_SERIES = {
   unemployment: { id:'UNRATE',       mode:'level', cadence:'monthly',   note:'BLS household survey' },
   claims:       { id:'ICSA',         mode:'level', cadence:'weekly',    note:'Initial claims, SA' },
-  cpi:          { id:'CPIAUCSL',     mode:'yoy',   cadence:'monthly',   note:'CPI-U, all items' },
+  cpi:          { id:'CPIAUCNS',     mode:'yoy',   cadence:'monthly',   note:'CPI-U, all items' },
   corepce:      { id:'PCEPILFE',     mode:'yoy',   cadence:'monthly',   note:"Fed's preferred gauge" },
   fedfunds:     { id:'DFF',          mode:'level', cadence:'daily',     note:'Effective fed funds' },
   ust10:        { id:'DGS10',        mode:'level', cadence:'daily',     note:'10-yr constant maturity' },
