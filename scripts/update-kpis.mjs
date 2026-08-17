@@ -54,7 +54,13 @@ const MARKETS = {
   eur:    { yahoo:'EURUSD=X',  stooq:'usdeur',  note:'', invert:true },
   gbp:    { yahoo:'GBPUSD=X',  stooq:'usdgbp',  note:'', invert:true },
   mxn:    { yahoo:'MXN=X',     stooq:'usdmxn',  note:'' },
-  cad:    { yahoo:'CAD=X',     stooq:'usdcad',  note:'' }
+  cad:    { yahoo:'CAD=X',     stooq:'usdcad',  note:'' },
+  /* Asia + Russia. These quote as units per USD already, so no invert. */
+  jpy:    { yahoo:'JPY=X',     stooq:'usdjpy',  note:'' },
+  cny:    { yahoo:'CNY=X',     stooq:'usdcny',  note:'Onshore yuan' },
+  inr:    { yahoo:'INR=X',     stooq:'usdinr',  note:'' },
+  php:    { yahoo:'PHP=X',     stooq:'usdphp',  note:'' },
+  rub:    { yahoo:'RUB=X',     stooq:'usdrub',  note:'Thin post-2022 quoting' }
 };
 
 const round = (n, dp = 4) => +n.toFixed(dp);
