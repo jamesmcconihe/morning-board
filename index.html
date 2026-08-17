@@ -49,22 +49,6 @@
   .refresh:hover{border-color:var(--brass);color:var(--brass)}
   .refresh:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
-  /* loud staleness bar */
-  .stalebar{display:none;margin-top:14px;padding:13px 18px;border-radius:3px;
-    background:rgba(255,138,92,.14);border:1px solid var(--alarm);color:#ffd9c7;
-    font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.05em;
-    align-items:center;gap:14px}
-  .stalebar.show{display:flex}
-  .stalebar strong{color:var(--alarm);text-transform:uppercase;letter-spacing:.12em;font-size:11.5px}
-  @keyframes pulsebg{0%,100%{background:rgba(255,138,92,.14)}50%{background:rgba(255,138,92,.26)}}
-  .stalebar.show{animation:pulsebg 3.2s ease-in-out infinite}
-  @media (prefers-reduced-motion:reduce){.stalebar.show{animation:none}}
-
-  .banner{margin:14px 0 0;padding:11px 16px;border-left:3px solid var(--brass);
-    background:rgba(216,178,106,.09);font-size:13px;line-height:1.5;color:#f0e3c6}
-  .banner.hidden{display:none}
-  .banner b{color:var(--brass)}
-
   /* release calendar */
   .cal{margin-top:18px;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
   .cal-head{display:flex;align-items:baseline;gap:12px;padding:10px 16px;
@@ -72,15 +56,40 @@
   .cal-head h3{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:19px;margin:0}
   .cal-head span{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
     text-transform:uppercase;color:var(--paper-dim)}
-  .cal-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-  .cal-row{padding:12px 16px;border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:4px}
-  .cal-row:last-child{border-right:none}
-  .cal-when{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  /* ---- scrolling ticker ---- */
+  .tickwrap{position:relative;overflow:hidden;padding:11px 0;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%);
+            mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%)}
+  .ticktrack{display:flex;width:max-content;will-change:transform;
+    animation:tickscroll linear infinite}
+  .tickwrap:hover .ticktrack,.tickwrap:focus-within .ticktrack{animation-play-state:paused}
+  @keyframes tickscroll{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+
+  .tick-item{display:flex;align-items:baseline;gap:11px;padding:0 20px;white-space:nowrap}
+  .tick-when{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
     text-transform:uppercase;color:var(--paper-dim)}
-  .cal-row.today .cal-when{color:var(--brass)}
-  .cal-row.today{background:rgba(216,178,106,.07)}
-  .cal-what{font-size:13.5px;line-height:1.35}
-  .cal-hits{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--paper-dim)}
+  .tick-what{font-size:13.5px;line-height:1.35}
+  .tick-hits{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--paper-dim)}
+  .tick-sep{color:var(--rule);align-self:center;font-size:11px}
+  .tick-item.soon .tick-when{color:var(--brass)}
+  .tick-item.soon .tick-what{color:#f0e3c6}
+  .tick-item.soon::before{content:"";width:6px;height:6px;border-radius:50%;
+    background:var(--brass);align-self:center;margin-right:-3px}
+  .tick-item.earn .tick-when{color:var(--rise)}
+  .tick-item.earn .tick-what::before{content:"EPS";font-family:"IBM Plex Mono",monospace;
+    font-size:9px;letter-spacing:.12em;color:var(--rise);border:1px solid var(--rise);
+    border-radius:2px;padding:1px 4px;margin-right:8px;vertical-align:1px}
+  .tick-est{color:var(--rule);font-family:"IBM Plex Mono",monospace;font-size:10.5px}
+  .cal-legend{padding:7px 16px;border-top:1px solid var(--rule);background:rgba(216,178,106,.03);
+    font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--paper-dim);display:flex;flex-wrap:wrap;gap:6px 20px}
+
+  /* no animation for reduced-motion or narrow screens: swipeable strip instead */
+  @media (prefers-reduced-motion:reduce){
+    .tickwrap{overflow-x:auto;-webkit-mask-image:none;mask-image:none}
+    .ticktrack{animation:none}
+    .ticktrack .tickcopy[data-clone="1"]{display:none}
+  }
 
   /* groups */
   section{margin-top:clamp(22px,2.6vw,38px)}
@@ -179,23 +188,24 @@
   </div>
 </header>
 
-<div class="stalebar" id="stalebar">
-  <strong>Stale</strong><span id="stalemsg"></span>
-</div>
 
-<div class="banner" id="banner">
-  <b>Frozen snapshot — not live.</b> Real published figures as of Friday 24 July 2026; macro tiles
-  show their own release dates. Sparklines stay empty until the feed supplies history —
-  I won't draw a trend line from invented data. This disappears once the GitHub Action has run
-  once and created <code>data/kpis.json</code>.
-</div>
+
+
 
 <div class="cal">
   <div class="cal-head">
     <h3>What prints next</h3>
-    <span>all times eastern</span>
+    <span>all times eastern &nbsp;·&nbsp; hover to pause</span>
   </div>
-  <div class="cal-rows" id="calrows"></div>
+  <div class="tickwrap" id="tickwrap" tabindex="0"
+       aria-label="Upcoming economic releases, scrolling">
+    <div class="ticktrack" id="ticktrack"></div>
+  </div>
+  <div class="cal-legend">
+    <span>Generated from published release rules — never needs editing</span>
+    <span>&asymp; day may shift 1&ndash;2 days</span>
+    <span><b style="color:var(--rise);font-weight:400">EPS</b> = earnings, timing estimated</span>
+  </div>
 </div>
 
 <main id="board"></main>
@@ -258,7 +268,12 @@ const GROUPS = [
       { key:'eur', label:'Euro',            kind:'price', dp:4, unit:'EUR' },
       { key:'gbp', label:'British Pound',   kind:'price', dp:4, unit:'GBP' },
       { key:'mxn', label:'Mexican Peso',    kind:'price', dp:3, unit:'MXN' },
-      { key:'cad', label:'Canadian Dollar', kind:'price', dp:4, unit:'CAD' }
+      { key:'cad', label:'Canadian Dollar', kind:'price', dp:4, unit:'CAD' },
+      { key:'jpy', label:'Japanese Yen',    kind:'price', dp:2, unit:'JPY' },
+      { key:'cny', label:'Chinese Yuan',    kind:'price', dp:4, unit:'CNY' },
+      { key:'inr', label:'Indian Rupee',    kind:'price', dp:3, unit:'INR' },
+      { key:'php', label:'Philippine Peso', kind:'price', dp:3, unit:'PHP' },
+      { key:'rub', label:'Russian Ruble',   kind:'price', dp:2, unit:'RUB' }
     ]
   }
 ];
@@ -268,24 +283,246 @@ const SLOW = [
   { key:'debtgdp', label:'Public Debt / GDP', dp:2, unit:'%' }
 ];
 
-const FX_KEYS = ['eur','gbp','mxn','cad'];
+const FX_KEYS = ['eur','gbp','mxn','cad','jpy','cny','inr','php','rub'];
 
 /* =====================================================================
-   RELEASE CALENDAR — verified dates. Extend as the year goes on.
-   hits: which tiles the release moves.
+   RELEASE CALENDAR — generated, not typed.
+   Every date below is computed from the agency's own published rule, so
+   the ticker keeps filling itself for years without anyone editing code.
+
+     exact  : jobless claims, mortgage survey, EIA, ISM, jobs report,
+              FOMC (Fed publishes 2026-27; later years pattern-derived)
+     approx : CPI, PPI, retail sales, GDP, core PCE  -> marked with a
+              tilde on the board, because these move a day or two.
+
+   TICKER_DAYS = how far ahead to look. TICKER_MAX = how many items ride
+   the belt. TICKER_SPEED = pixels per second, lower is slower.
    ===================================================================== */
-const RELEASES = [
-  { date:'2026-07-29', time:'2:00 PM', what:'FOMC decision + Warsh press conference',
-    hits:['fedfunds','ust10','mortgage30'] },
-  { date:'2026-07-30', time:'8:30 AM', what:'Q2 GDP advance · June PCE & core PCE · jobless claims',
-    hits:['corepce','claims'] },
-  { date:'2026-07-30', time:'—',       what:'Debt-to-GDP ratio, Q2', hits:['debtgdp'] },
-  { date:'2026-07-31', time:'8:30 AM', what:'Employment Cost Index · Michigan sentiment final', hits:[] },
-  { date:'2026-08-06', time:'8:30 AM', what:'Jobless claims · Freddie Mac mortgage survey',
-    hits:['claims','mortgage30'] },
-  { date:'2026-08-07', time:'8:30 AM', what:'Employment Situation, July', hits:['unemployment'] },
-  { date:'2026-08-12', time:'8:30 AM', what:'Consumer Price Index, July', hits:['cpi'] }
+const TICKER_DAYS = 120, TICKER_MAX = 26, TICKER_SPEED = 55;
+
+/* EARNINGS_DAYS: how far ahead to show earnings. 1 = today + tomorrow.
+   Raise it to 7 if you'd rather see the whole week coming. */
+const EARNINGS_DAYS = 1;
+
+const pad = n => String(n).padStart(2,'0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const mk  = (y,m,d) => new Date(y, m, d);          // m is 0-based
+const dow = d => d.getDay();                        // 0 Sun .. 6 Sat
+
+/* ---- nth / last weekday of a month ---- */
+function nthWeekday(y, m, weekday, n){
+  const first = mk(y,m,1);
+  let day = 1 + ((weekday - dow(first) + 7) % 7) + (n-1)*7;
+  return mk(y,m,day);
+}
+function lastWeekday(y, m, weekday){
+  const last = mk(y, m+1, 0);
+  return mk(y, m, last.getDate() - ((dow(last) - weekday + 7) % 7));
+}
+function lastBusinessDay(y, m){
+  let d = mk(y, m+1, 0);
+  while(dow(d)===0 || dow(d)===6 || isHoliday(d)) d = mk(y, m, d.getDate()-1);
+  return d;
+}
+function nthBusinessDay(y, m, n){
+  let d = mk(y,m,1), count = 0;
+  while(true){
+    if(dow(d)!==0 && dow(d)!==6 && !isHoliday(d)) count++;
+    if(count===n) return d;
+    d = mk(y, m, d.getDate()+1);
+  }
+}
+
+/* ---- US federal holidays, computed (no table to maintain) ---- */
+function holidaySet(y){
+  const s = new Set();
+  const add = d => s.add(iso(d));
+  const observed = (mo, day) => {           // fixed-date holidays shift off weekends
+    const d = mk(y, mo, day);
+    if(dow(d)===6) return mk(y, mo, day-1);
+    if(dow(d)===0) return mk(y, mo, day+1);
+    return d;
+  };
+  add(observed(0,1));                       // New Year's Day
+  add(nthWeekday(y,0,1,3));                 // MLK — 3rd Monday Jan
+  add(nthWeekday(y,1,1,3));                 // Washington — 3rd Monday Feb
+  add(lastWeekday(y,4,1));                  // Memorial — last Monday May
+  add(observed(5,19));                      // Juneteenth
+  add(observed(6,4));                       // Independence Day
+  add(nthWeekday(y,8,1,1));                 // Labor — 1st Monday Sep
+  add(nthWeekday(y,9,1,2));                 // Columbus — 2nd Monday Oct
+  add(observed(10,11));                     // Veterans Day
+  add(nthWeekday(y,10,4,4));                // Thanksgiving — 4th Thursday Nov
+  add(observed(11,25));                     // Christmas
+  return s;
+}
+const HOLIDAY_CACHE = {};
+function isHoliday(d){
+  const y = d.getFullYear();
+  if(!HOLIDAY_CACHE[y]) HOLIDAY_CACHE[y] = holidaySet(y);
+  return HOLIDAY_CACHE[y].has(iso(d));
+}
+/* agencies publish a day EARLY when the slot lands on a holiday */
+function backOffHoliday(d){
+  let out = d;
+  while(isHoliday(out) || dow(out)===0 || dow(out)===6) out = mk(out.getFullYear(), out.getMonth(), out.getDate()-1);
+  return out;
+}
+
+/* ---- FOMC: Fed publishes years ahead. Confirmed list + pattern fallback ---- */
+const FOMC_CONFIRMED = {
+  2026: [[0,28],[2,18],[3,29],[5,17],[6,29],[8,16],[9,28],[11,9]],
+  2027: [[0,27],[2,17],[3,28],[5,16],[6,28],[8,22],[10,3],[11,15]]
+};
+/* Decision days are Wednesdays in weeks 4/3/4/3/4/3/4/2 of Jan,Mar,Apr,Jun,Jul,Sep,Oct,Dec */
+const FOMC_PATTERN = [[0,4],[2,3],[3,4],[5,3],[6,4],[8,3],[9,4],[11,2]];
+function fomcDecisions(y){
+  if(FOMC_CONFIRMED[y]) return FOMC_CONFIRMED[y].map(([m,d]) => ({date:mk(y,m,d), est:false}));
+  return FOMC_PATTERN.map(([m,n]) => ({date:nthWeekday(y,m,3,n), est:true}));
+}
+
+const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const prevMonthName = d => MON[(d.getMonth()+11)%12];
+
+
+/* ---- Employment Situation: BLS rule = 3rd Friday after the reference week
+   (the Sun-Sat week containing the 12th of the reference month) ---------- */
+function jobsReportDate(y, m){
+  const rm = mk(y, m-1, 12);                       // reference month = prior month
+  const refSat = mk(rm.getFullYear(), rm.getMonth(), rm.getDate() + (6 - dow(rm)));
+  let d = mk(refSat.getFullYear(), refSat.getMonth(), refSat.getDate() + 20);
+  if(d.getMonth() === 0 && d.getDate() <= 2)       // New Year collision -> next Friday
+    d = mk(d.getFullYear(), 0, d.getDate() + 7);
+  while(isHoliday(d)) d = mk(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+  return d;
+}
+
+/* ---- the generator: everything that repeats on a knowable cadence ---- */
+function generate(from, to){
+  const out = [];
+  const push = (date, time, what, hits, est=false) => {
+    if(date < from || date > to) return;
+    out.push({date:iso(date), time, what, hits, est});
+  };
+
+  /* weekly */
+  for(let d = new Date(from); d <= to; d = mk(d.getFullYear(), d.getMonth(), d.getDate()+1)){
+    if(dow(d)===4){                                    // Thursday
+      const t = backOffHoliday(d);
+      push(t, '8:30 AM', 'Initial jobless claims', ['claims']);
+      push(t, '12:00 PM', 'Freddie Mac mortgage survey', ['mortgage30']);
+    }
+    if(dow(d)===3){                                    // Wednesday
+      push(backOffHoliday(d), '10:30 AM', 'EIA petroleum status report', ['oil','brent']);
+    }
+  }
+
+  /* monthly + quarterly, walked month by month */
+  const startM = from.getFullYear()*12 + from.getMonth();
+  const endM   = to.getFullYear()*12 + to.getMonth();
+  for(let mi = startM; mi <= endM; mi++){
+    const y = Math.floor(mi/12), m = mi%12;
+
+    const jobs = jobsReportDate(y,m);
+    push(jobs, '8:30 AM', `Employment Situation, ${prevMonthName(jobs)}`, ['unemployment']);
+
+    push(nthBusinessDay(y,m,1), '10:00 AM', 'ISM manufacturing PMI', []);
+    push(nthBusinessDay(y,m,3), '10:00 AM', 'ISM services PMI', []);
+
+    /* CPI lands 10th–15th, Tue–Thu. Second Wednesday is the best rule available. */
+    const cpi = nthWeekday(y,m,3,2);
+    push(cpi, '8:30 AM', `Consumer Price Index, ${prevMonthName(cpi)}`, ['cpi'], true);
+    const ppi = backOffHoliday(mk(y,m,cpi.getDate()+2));
+    push(ppi, '8:30 AM', `Producer Price Index, ${prevMonthName(ppi)}`, [], true);
+
+    const retail = backOffHoliday(nthWeekday(y,m,2,3));
+    push(retail, '8:30 AM', `Retail sales, ${prevMonthName(retail)}`, [], true);
+
+    push(nthWeekday(y,m,5,2), '10:00 AM', 'Michigan consumer sentiment, prelim', [], true);
+
+    const gdp = backOffHoliday(lastWeekday(y,m,4));
+    const gdpQ = ['Q4','Q4','Q4','Q1','Q1','Q1','Q2','Q2','Q2','Q3','Q3','Q3'][m];
+    const gdpStage = ['advance','second','third'][m%3];
+    push(gdp, '8:30 AM', `GDP ${gdpQ} ${gdpStage} estimate`, [], true);
+
+    const pce = lastBusinessDay(y,m);
+    push(pce, '8:30 AM', `Personal Income & Outlays — core PCE, ${prevMonthName(pce)}`, ['corepce'], true);
+
+    /* debt-to-GDP moves on the quarterly Z.1 / GDP cycle */
+    if(m%3===0) push(gdp, '—', 'Debt-to-GDP ratio update', ['debtgdp'], true);
+  }
+
+  /* FOMC */
+  for(let y = from.getFullYear(); y <= to.getFullYear(); y++){
+    fomcDecisions(y).forEach(({date, est}) => {
+      push(date, '2:00 PM', 'FOMC rate decision + press conference', ['fedfunds','ust10','mortgage30'], est);
+    });
+  }
+
+  const mins = t => { const m2=/^(\d+):(\d+)\s*(AM|PM)$/.exec(t); if(!m2) return 9999;
+    let h=+m2[1]%12; if(m2[3]==='PM') h+=12; return h*60 + +m2[2]; };
+  out.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : mins(a.time)-mins(b.time));
+  return out;
+}
+
+/* =====================================================================
+   EARNINGS — estimated from each company's habitual reporting slot.
+   ===================================================================== */
+function lastWD(y,m,wd){ const l=mk(y,m+1,0); return mk(y,m,l.getDate()-((dow(l)-wd+7)%7)); }
+const slot=(y,m,wd,n)=> n===0 ? lastWD(y,m,wd) : nthWeekday(y,m,wd,n);
+
+const EARNERS = [
+  {t:'HD',   n:'Home Depot',      w:'housing turnover, big-ticket demand', ac:0, q:[[1,2,3],[4,2,3],[7,2,3],[10,2,3]]},
+  {t:'WMT',  n:'Walmart',         w:'grocery inflation pass-through',      ac:0, q:[[1,4,3],[4,4,3],[7,4,3],[10,4,3]]},
+  {t:'TGT',  n:'Target',          w:'discretionary demand',                ac:0, q:[[2,3,3],[4,3,3],[7,3,3],[10,3,3]]},
+  {t:'LOW',  n:'Lowe\u2019s',     w:'housing repair spend',                ac:0, q:[[1,3,3],[4,3,3],[7,3,3],[10,3,3]]},
+  {t:'DE',   n:'Deere',           w:'farm income, industrial capex',        ac:0, q:[[1,4,3],[4,4,3],[7,4,3],[10,4,3]]},
+  {t:'NVDA', n:'Nvidia',          w:'AI capex cycle',                      ac:1, q:[[1,3,4],[4,3,4],[7,3,4],[10,3,4]]},
+  {t:'AAPL', n:'Apple',           w:'global consumer demand',              ac:1, q:[[0,4,4],[4,4,1],[6,4,0],[9,4,0]]},
+  {t:'MSFT', n:'Microsoft',       w:'enterprise IT and cloud capex',       ac:1, q:[[0,2,0],[3,2,0],[6,2,0],[9,2,0]]},
+  {t:'GOOGL',n:'Alphabet',        w:'ad spend as demand proxy',            ac:1, q:[[0,2,0],[3,2,0],[6,2,0],[9,2,0]]},
+  {t:'AMZN', n:'Amazon',          w:'consumer spend and cloud',            ac:1, q:[[0,4,0],[3,4,0],[6,4,0],[9,4,0]]},
+  {t:'META', n:'Meta',            w:'ad spend as demand proxy',            ac:1, q:[[0,3,0],[3,3,0],[6,3,0],[9,3,0]]},
+  {t:'JPM',  n:'JPMorgan Chase',  w:'credit conditions, loan losses',      ac:0, q:[[0,2,2],[3,2,2],[6,2,2],[9,2,2]]},
+  {t:'BAC',  n:'Bank of America', w:'consumer credit health',              ac:0, q:[[0,4,2],[3,4,2],[6,4,2],[9,4,2]]},
+  {t:'GS',   n:'Goldman Sachs',   w:'dealmaking and risk appetite',        ac:0, q:[[0,3,3],[3,3,3],[6,3,3],[9,3,3]]},
+  {t:'XOM',  n:'Exxon Mobil',     w:'energy margins',                      ac:0, q:[[0,5,0],[3,5,0],[6,5,0],[9,5,0]]},
+  {t:'CVX',  n:'Chevron',         w:'energy margins',                      ac:0, q:[[0,5,0],[3,5,0],[6,5,0],[9,5,0]]},
+  {t:'CAT',  n:'Caterpillar',     w:'global construction demand',          ac:0, q:[[0,3,0],[3,3,0],[6,3,0],[9,3,0]]},
+  {t:'UPS',  n:'UPS',             w:'freight and parcel volumes',          ac:0, q:[[0,2,0],[3,2,0],[6,2,0],[9,2,0]]},
+  {t:'FDX',  n:'FedEx',           w:'freight volumes',                     ac:1, q:[[2,4,3],[5,4,3],[8,4,3],[11,4,3]]},
+  {t:'COST', n:'Costco',          w:'staples volume and traffic',          ac:1, q:[[2,4,1],[4,4,0],[8,4,0],[11,4,3]]},
+  {t:'TSM',  n:'TSMC',            w:'global chip demand',                  ac:0, q:[[0,4,3],[3,4,3],[6,4,3],[9,4,3]]},
+  {t:'AVGO', n:'Broadcom',        w:'AI networking demand',                ac:1, q:[[2,4,2],[5,4,2],[8,4,2],[11,4,2]]},
+  {t:'MU',   n:'Micron',          w:'memory pricing cycle',                ac:1, q:[[2,3,4],[5,3,4],[8,3,4],[11,3,4]]},
+  {t:'PG',   n:'Procter & Gamble',w:'staples pricing power',               ac:0, q:[[0,5,3],[3,5,3],[6,5,3],[9,5,3]]},
+  {t:'UNH',  n:'UnitedHealth',    w:'medical cost trend',                  ac:0, q:[[0,4,3],[3,4,3],[6,4,3],[9,4,3]]}
 ];
+
+/* Big-cap reports whose read-through is macro, not just single-stock:
+   consumer health, freight volumes, credit, energy margins, AI capex.
+   q = four reporting slots as [month(0-based), weekday(1=Mon), nth].
+   nth 0 means "last such weekday of the month". ac = reports after close.
+   These are HISTORICAL SLOTS, not confirmed dates -> always shown with a
+   tilde. A company that moves its call by a few days will be off here. */
+function upcomingEarnings(from, days){
+  const to = mk(from.getFullYear(), from.getMonth(), from.getDate()+days);
+  const out = [];
+  for(let y = from.getFullYear(); y <= to.getFullYear(); y++)
+    for(const c of EARNERS)
+      for(const [m,wd,n] of c.q){
+        const d = slot(y,m,wd,n);
+        if(d >= from && d <= to) out.push({date:iso(d), ...c});
+      }
+  return out.sort((a,b)=> a.date<b.date?-1: a.date>b.date?1: a.t<b.t?-1:1);
+}
+
+/* one call: everything due between two dates, sorted */
+function upcomingReleases(days){
+  const from = new Date(); from.setHours(0,0,0,0);
+  const to = mk(from.getFullYear(), from.getMonth(), from.getDate() + days);
+  return generate(from, to);
+}
 
 /* =====================================================================
    REFERENCE SNAPSHOT — real published figures, frozen in time.
@@ -373,30 +610,72 @@ function relDay(iso){
 /* =====================================================================
    BUILD
    ===================================================================== */
+let tickSignature = '';
+
 function buildCalendar(){
-  const today = new Date(); today.setHours(0,0,0,0);
-  const upcoming = RELEASES
-    .filter(r => new Date(r.date + 'T00:00:00') >= today)
-    .slice(0,4);
-  const host = document.getElementById('calrows');
-  if(!upcoming.length){
-    host.innerHTML = `<div class="cal-row"><div class="cal-what">No dates left in the
-      calendar — add the next ones to <code>RELEASES</code>.</div></div>`;
+  const track = document.getElementById('ticktrack');
+  if(!track) return;
+
+  const from = new Date(); from.setHours(0,0,0,0);
+  const earnings = upcomingEarnings(from, EARNINGS_DAYS).map(e => ({
+    date: e.date,
+    time: e.ac ? 'after close' : 'before open',
+    what: e.t + ' \u00b7 ' + e.n + ' earnings',
+    hits: [], est: true, earn: true, why: e.w
+  }));
+  const items = earnings
+    .concat(upcomingReleases(TICKER_DAYS))
+    .sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1
+                 : (a.earn ? 0 : 1) - (b.earn ? 0 : 1))
+    .slice(0, TICKER_MAX + earnings.length);
+  if(!items.length){
+    track.innerHTML = '<div class="tick-item"><span class="tick-what">' +
+      'Calendar generator returned nothing — check the browser console.</span></div>';
+    track.style.animation = 'none';
     return;
   }
-  host.innerHTML = upcoming.map(r => {
-    const isToday = relDay(r.date) === 'Today';
+
+  /* skip the rebuild if nothing actually changed, so the belt doesn't
+     jump back to the start every hour for no reason */
+  const sig = items.map(r => r.date + r.time + r.what).join('|');
+  if(sig === tickSignature) return;
+  tickSignature = sig;
+
+  const soonest = items[0].date;
+  const cell = r => {
     const labels = r.hits.map(k => {
       const it = ALL_ITEMS().find(i => i.key === k) || SLOW.find(i => i.key === k);
       return it ? it.label : k;
     });
-    return `<div class="cal-row${isToday ? ' today' : ''}">
-      <div class="cal-when">${relDay(r.date)}${r.time !== '—' ? ' · ' + r.time : ''}</div>
-      <div class="cal-what">${r.what}</div>
-      <div class="cal-hits">${labels.length ? 'moves: ' + labels.join(', ') : 'no board tiles'}</div>
-    </div>`;
-  }).join('');
+    const when = relDay(r.date) + (r.time !== '\u2014' ? ' \u00b7 ' + r.time : '');
+    const tail = r.earn ? r.why : (labels.length ? 'moves ' + labels.join(', ') : '\u2014');
+    return '<span class="tick-item' + (r.date === soonest ? ' soon' : '') +
+             (r.earn ? ' earn' : '') + '">' +
+      '<span class="tick-when">' + when + '</span>' +
+      '<span class="tick-what">' + r.what +
+        (r.est ? ' <span class="tick-est">\u2248</span>' : '') + '</span>' +
+      '<span class="tick-hits">' + tail + '</span>' +
+    '</span><span class="tick-sep">\u25c6</span>';
+  };
+
+  /* two identical copies: copy 2 slides in as copy 1 slides out, so the
+     loop has no visible seam */
+  const copy = '<div class="tickcopy" style="display:flex">' + items.map(cell).join('') + '</div>';
+  track.innerHTML = copy + copy.replace('class="tickcopy"', 'class="tickcopy" data-clone="1"');
+
+  setTickerSpeed();
 }
+
+/* duration is derived from real measured width, so the scroll runs at the
+   same visual speed whether there are 8 items or 26 */
+function setTickerSpeed(){
+  const track = document.getElementById('ticktrack');
+  if(!track) return;
+  const oneCopy = track.scrollWidth / 2;
+  if(!oneCopy) return;
+  track.style.animationDuration = Math.max(20, oneCopy / TICKER_SPEED) + 's';
+}
+window.addEventListener('resize', setTickerSpeed);
 
 function buildSkeleton(){
   const board = document.getElementById('board');
@@ -564,30 +843,24 @@ function tickCountdown(){
   document.getElementById('countdown').textContent = `next refresh in ${m}:${s}`;
 }
 
-/* Loud staleness: a wall board must never look healthy while it's frozen. */
+/* Quiet staleness. The loud orange bar is gone by request; the health of
+   the feed now shows up in the status line under the clock instead, so the
+   board still can't look healthy while it's actually frozen. */
 let lastGoodFetch = null, lastError = null, feedProblems = [];
 function tickStale(){
-  const bar = document.getElementById('stalebar');
-  const msg = document.getElementById('stalemsg');
-  if(!CONFIG.ENDPOINT){ bar.classList.remove('show'); return; }
+  const el = document.getElementById('updated');
+  if(!el || !CONFIG.ENDPOINT) return;
+  let warn = '';
   if(!lastGoodFetch){
-    bar.classList.add('show');
-    msg.textContent = `The feed has not answered${lastError ? ' — ' + lastError : ''}. `
-      + `Nothing on this board is current.`;
-    return;
-  }
-  const mins = Math.floor((Date.now() - lastGoodFetch)/60000);
-  if(mins >= CONFIG.STALE_AFTER_MINUTES){
-    bar.classList.add('show');
-    msg.textContent = `Last successful update was ${mins} minutes ago`
-      + `${lastError ? ' — ' + lastError : ''}. Treat every number as old.`;
-  } else if(feedProblems.length){
-    bar.classList.add('show');
-    msg.textContent = `Feed answered, but ${feedProblems.length} series had trouble — `
-      + `open the browser console, or the Actions log on GitHub, for the list.`;
+    warn = 'feed not answering' + (lastError ? ' — ' + lastError : '');
   } else {
-    bar.classList.remove('show');
+    const mins = Math.floor((Date.now() - lastGoodFetch)/60000);
+    if(mins >= CONFIG.STALE_AFTER_MINUTES) warn = `last update ${mins} min ago`;
+    else if(feedProblems.length) warn = `${feedProblems.length} series had trouble`;
   }
+  el.style.color = warn ? 'var(--alarm)' : '';
+  el.dataset.warn = warn;
+  if(warn) el.textContent = warn;
 }
 
 /* =====================================================================
@@ -623,7 +896,6 @@ async function load(){
   if(usingSnapshot) payload = SNAPSHOT;
 
   paint(payload);
-  document.getElementById('banner').classList.toggle('hidden', !usingSnapshot);
   document.getElementById('source').textContent = usingSnapshot
     ? 'source: frozen snapshot' + (CONFIG.ENDPOINT && lastError ? ` — ${lastError}` : '')
     : 'source: live feed';
@@ -650,7 +922,7 @@ tickCountdown(); setInterval(tickCountdown, 1000);
 tickStale();     setInterval(tickStale, 30000);
 load();
 setInterval(load, CONFIG.REFRESH_MINUTES*60*1000);
-setInterval(buildCalendar, 3600000);   // roll the calendar over at day change
+setInterval(buildCalendar, 600000);    // re-check every 10 min; rebuilds only when the list actually changes
 </script>
 </body>
 </html>
